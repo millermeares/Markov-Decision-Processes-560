@@ -39,9 +39,9 @@ print(model_free.runQAnalysis())
 print("MODEL FREE Q VALUES: ")
 print(model_free.printQ())
 
-#model_based = PolicySearch(states)
+model_based = PolicySearch(states)
 print("MODEL FREE TRANSITION VALUES, FOLLOWED BY UTILITY FUNCTION: ")
-#print(model_based.runModelBased())
+print(model_based.runModelBased())
 
 
 
