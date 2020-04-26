@@ -9,19 +9,19 @@ class QLearningAgent():
 		self.N = {}
 
 		# checkSum value to know when Q values have stopped changing a lot
-		self.checksum = 0.0
+		#self.checksum = 0.0
 		self.checked = 1
 
 		# alpha is the learning rate - high = Q values often updated. low = Q values rarely updated
 		# if the value of alpha is too low, the system will not learn. The higher the value of alpha, the higher the value of epsilon needs to be
 		self.alpha = 0.1
-		self.epsilon = 0.00001
+		#self.epsilon = 0.1
 
-		#learning_iter is the amount of iterations before checksum checks. 
-		self.learning_iter = 10000
+		#learning_iter is the amount of iterations
+		self.learning_iter = 100000
 
 		# discount factor models the ract that future rewards are worth less than immediate rewards
-		self.discount_factor = 0.5
+		self.discount_factor = 0.1
 
 		# becaues the learning space is potentially infinite, big_N is the amount of iterations each action needs to have before the 
 		# explore function starts to choose best Q value. As of now, it's arbitrary (0.2 * learning_iter)
@@ -47,7 +47,8 @@ class QLearningAgent():
 		self.current_state = "Fairway"
 		self.current_reward = None
 
-	
+	# input: state
+	# output: action, either randomly chosen or, once every action has been chosen X amount of times, the action that maximizes Q
 	def explore(self, state):
 		if len(self.states[state].actions) is 1:
 			return list(self.states[state].actions.keys())[0]
@@ -65,8 +66,11 @@ class QLearningAgent():
 				highest_Q = self.Q[state][a]
 				q_action = a
 		return q_action
-			
-
+	
+	# input: none
+	# output: technically an action, but functionally none. This creates manipulates Q values which are related to the utility. 
+	# this function also gets the reward - the reward is harder to say in this implementation
+	# I chose "1 / possible_actions + 1" as my reward value for each state - the less actions available, the closer you are to the hole.
 	def QLearningAlg(self):
 		if self.previous_state == "In": 
 			self.previous_state = None
@@ -96,13 +100,11 @@ class QLearningAgent():
 						q_action = a
 			else:
 				highest_Q = 1.0
-			#self.alpha = (self.N[self.previous_state][self.previous_action] * self.checked) / self.iterations
+			self.alpha = (self.N[self.previous_state][self.previous_action] * self.checked) / self.iterations
 			self.Q[self.previous_state][self.previous_action] += self.alpha * self.N[self.previous_state][self.previous_action] * \
 				(self.previous_reward + self.discount_factor * highest_Q) - self.Q[self.previous_state][self.previous_action]
-
 		#reset
 		self.previous_reward = self.current_reward
-
 		if self.current_state != "In":
 			self.current_action = self.explore(self.current_state)
 
@@ -135,7 +137,7 @@ class QLearningAgent():
 		return new_state
 
 	# calculate Utility policy based on Q values. U = maxa(Q(s,a))
-	# ties by last
+	# ties sorted by the later one in the input. very scientific i know
 	def getPolicy(self):
 		# {state: action_to_take}
 		# action to take calculated by max(Qstate)
@@ -148,32 +150,29 @@ class QLearningAgent():
 
 		return utility_values
 
-	def checkSumLearning(self):
-		q_sum = 0
-		for s in self.states:
-			for a in self.states[s].actions:
-				q_sum += self.Q[s][a]
-		diff = abs(q_sum - self.checksum) / self.learning_iter
+	# checksum of learning to decide when to stop the process (which is technically infinite)
+	# basically, if Q values haven't changed by epsilon amount in learning_iter iterations, then you can end
+	#def checkSumLearning(self):
+		#q_sum = 0
+		#for s in self.states:
+			#for a in self.states[s].actions:
+				#q_sum += self.Q[s][a]
+		#diff = abs(q_sum - self.checksum) / self.learning_iter
 
-		if diff < self.epsilon:
-			return False
-		else:
-			self.checksum = q_sum
-			return True
-
+		#if diff < self.epsilon:
+			#return False
+		#else:
+			#self.checksum = q_sum
+			#return True
 
 	def runQAnalysis(self):
 		learning = True
 		while learning:
-			# every learning_iter iterations:
-			# learning = checkSumLearning(self)
-
 			self.QLearningAlg()
-
 			self.iterations += 1
-			if self.iterations == self.learning_iter * self.checked:
-				learning = self.checkSumLearning()
-				self.checked += 1
-				print(self.checked)
-
+			if self.iterations == self.learning_iter:
+				learning = False
 		return self.getPolicy()
+	
+	def printQ(self):
+		print(self.Q)
