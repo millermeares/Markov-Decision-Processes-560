@@ -2,7 +2,7 @@ import sys, random
 from State import State
 from Actions import Action
 from QLearningAgent import *
-# import statements
+# import statements - I added one line to the test file to account for the lack of "In" state. 
 
 file1 = open("560-project2/assignment2test.txt", "r")
 states = {}
@@ -29,6 +29,8 @@ while (1):
 	states[split[0]].actions[split[1]].probabilities.append(int(float(split[3])*100))
 
 	line = file1.readline().strip()
+# input file doesn't have "In" state. - might not do this.
+# In/Begin/Fairway/1.00
 
 # first TO DO: get the program to where it can reliably play golf before introducing anything interesting. 
 def playGolf():

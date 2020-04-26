@@ -7,15 +7,26 @@ class QLearningAgent():
 		self.Q = {}
 		# {{}} N is the amount of times that each action is taken in each state
 		self.N = {}
-		# {{}} R = total reward earned by this state-action pair. 
-		# reward = R[s][a] / N[s][a] 
-		self.R = {}
 
 		# checkSum value to know when Q values have stopped changing a lot
 		self.checksum = 0.0
-		
-		# amount of iterations before checkSumLearning
-		self.learning_iter = 100000
+		self.checked = 1
+
+		# alpha is the learning rate - high = Q values often updated. low = Q values rarely updated
+		# if the value of alpha is too low, the system will not learn. The higher the value of alpha, the higher the value of epsilon needs to be
+		self.alpha = 0.1
+		self.epsilon = 0.00001
+
+		#learning_iter is the amount of iterations before checksum checks. 
+		self.learning_iter = 10000
+
+		# discount factor models the ract that future rewards are worth less than immediate rewards
+		self.discount_factor = 0.5
+
+		# becaues the learning space is potentially infinite, big_N is the amount of iterations each action needs to have before the 
+		# explore function starts to choose best Q value. As of now, it's arbitrary (0.2 * learning_iter)
+		# idea: big_N = 1 / 2(len(states].actions)) * learning_iter
+		self.big_N = 0.2
 
 		# initialize Q, N, and U tables to zeroes across the board.
 		for s in states:
@@ -23,110 +34,92 @@ class QLearningAgent():
 				if s not in self.Q:
 					self.Q[s] = {}
 					self.N[s] = {}
-					self.R[s] = {}
 				self.Q[s][a] = 0.0
 				self.N[s][a] = 0.0
-				avail = len(list(self.states[s].actions.keys()))
-				self.R[s][a] = 1.0 / avail
-		#print(self.R)
-		# discount factor models the ract that future rewards are worth less than immediate rewards
-		self.discount_factor = 0.5
-		# alpha is the learning rate - high = Q values often updated. low = Q values rarely updated
-		self.alpha = 0.5
+		self.iterations = 0
 
-		# could be determined by still_learning function
-		self.exploration_number = 1000
 
-# TO DO: getPolicy, printQ
-	def getTotalStateReward(self, state):
-		reward = 0.0
-		for action in self.states[state].actions:
-			reward += self.R[state][action]
-		return reward
+		# values for q
+		self.previous_state = None
+		self.previous_action = None
+		self.previous_reward = None
+		self.current_action = None
+		self.current_state = "Fairway"
+		self.current_reward = None
+
 	
-	def getTotalStateNumber(self, state):
-		number = 0.0
-		for action in self.states[state].actions:
-			number += self.N[state][action]
-		return number
-
-	def getAverageReward(self, state):
-		if self.getTotalStateNumber(state) == 0:
-			return 0
-		return self.getTotalStateReward(state) / self.getTotalStateNumber(state)
-
-	def updatePreviousReward(self, current_state, previous_state, action_taken):
-		# reward of getting ball in hole is 1. Consider just putting this in the 'update reward' function
-		# if TERMINAL(s) then Q[s, None] = r'. 
-		if current_state == "In":
-			add_reward = 1.0
-		else:
-			# get average reward total of R[s][a]. N[s][a] is incremented elsewhere
-			add_reward = self.getTotalStateReward(current_state)
-		if add_reward != 0:
-			self.R[previous_state][action_taken] += (1.0 / add_reward)
-
-		return None
-
-	# get Max Q value calced first. then do f(calced, n[s][q]) as seen in the textbook.
-	#tiebreaker is whichever is last
 	def explore(self, state):
 		if len(self.states[state].actions) is 1:
 			return list(self.states[state].actions.keys())[0]
 
+		for i in range(0,len(self.states[state].actions)):
+			random_action = random.choice(list(self.states[state].actions.keys()))
+			if self.N[state][random_action] < self.learning_iter * self.big_N:
+				return random_action
+		
 		first_action = list(self.states[state].actions.keys())[0]
 		q_action = first_action
-		r_action = first_action
 		highest_Q = self.Q[state][first_action]
 		for a in self.states[state].actions:
 			if self.Q[state][a] >= highest_Q:
 				highest_Q = self.Q[state][a]
 				q_action = a
+		return q_action
+			
 
-		# q_action = highest Q value OR the last one
-		# highest_Q = that number.
-		explore_N = self.N[state][q_action]
+	def QLearningAlg(self):
+		if self.previous_state == "In": 
+			self.previous_state = None
+			self.previous_action = None
+			self.previous_reward = None
+			self.current_action = None
+			self.current_state = "Fairway"
+			self.current_reward = None
+			self.Q["In",None] = 1.0 # reward at "In"
 
-		if explore_N > self.exploration_number:
-			return q_action
+		if self.current_state != "In":
+			self.current_reward = 1.0 / (len(list(self.states[self.current_state].actions)) + 1.0)
 		else:
-			# this is not correct. THis should have teh effect of trying each action-pair N times. 
-			# return action choice with best theoretical reward (R+).
-			# if the action with the highest Q value also has the highest reward, return the one with 2nd highest reward
-			highest_reward = 0
-			for a in self.states[state].actions:
-				if self.N[state][a] != 0.0:
-					if self.R[state][a]/self.N[state][a] >= highest_reward:
-						if a != q_action:
-							highest_reward = self.R[state][a]/self.N[state][a]
-							r_action = a
-			return r_action
-			
-			
+			self.current_reward = 1.0
 
-	def QLearningAlg(self, current_state, previous_action, previous_state):
+		if self.previous_state is not None:
+			# increment n
+			self.N[self.previous_state][self.previous_action] += 1
+			#get max q in s[a]
+			if self.current_state != "In":
+				first_action = list(self.states[self.current_state].actions.keys())[0]
+				q_action = first_action
+				highest_Q = self.Q[self.current_state][first_action]
+				for a in self.states[self.current_state].actions:
+					if self.Q[self.current_state][a] >= highest_Q:
+						highest_Q = self.Q[self.current_state][a]
+						q_action = a
+			else:
+				highest_Q = 1.0
+			#self.alpha = (self.N[self.previous_state][self.previous_action] * self.checked) / self.iterations
+			self.Q[self.previous_state][self.previous_action] += self.alpha * self.N[self.previous_state][self.previous_action] * \
+				(self.previous_reward + self.discount_factor * highest_Q) - self.Q[self.previous_state][self.previous_action]
 
-		if previous_state is not None:
-			highest_Q = 0
-			# ties broken by last
-			for a in self.states[current_state].actions:
-				if self.Q[current_state][a] >= highest_Q:
-					highest_Q = self.Q[current_state][a]
-			self.N[previous_state][previous_action] += 1
-			self.Q[previous_state][previous_action] = self.Q[previous_state][previous_action] + \
-				self.alpha*self.N[previous_state][previous_action] * ((self.R[previous_state][previous_action]/self.N[previous_state][previous_action]) + \
-					self.discount_factor * highest_Q - self.Q[previous_state][previous_action])
+		#reset
+		self.previous_reward = self.current_reward
 
+		if self.current_state != "In":
+			self.current_action = self.explore(self.current_state)
 
-			# explore (highest Q value of available actions in current state, number of times that action has been taken)
-		return self.explore(current_state)
+		self.previous_state = self.current_state
+		if self.current_state != "In":
+			self.current_state = self.takeAction(self.current_state,self.current_action)
+
+		self.previous_action = self.current_action
+
+		return self.previous_action	
 
 	# input: action, state
 	# output: new state based on the input probabilities
-	def takeAction(self,current_state, action_taken):
+	def takeAction(self,current_state, last_action):
 		
 		# get a random probability
-		probability_list = self.states[current_state].actions[action_taken].probabilities
+		probability_list = self.states[current_state].actions[last_action].probabilities
 		random_probability = random.randint(1,100)
 
 		# an outcome happens based on the probabilities of action A in state S
@@ -138,7 +131,7 @@ class QLearningAgent():
 				break
 			ctr += 1
 
-		new_state = self.states[current_state].actions[action_taken].outcomes[ctr]
+		new_state = self.states[current_state].actions[last_action].outcomes[ctr]
 		return new_state
 
 	# calculate Utility policy based on Q values. U = maxa(Q(s,a))
@@ -160,58 +153,27 @@ class QLearningAgent():
 		for s in self.states:
 			for a in self.states[s].actions:
 				q_sum += self.Q[s][a]
-		diff = abs(q_sum - self.checksum) / learning_iter
-		if diff < 1:
+		diff = abs(q_sum - self.checksum) / self.learning_iter
+
+		if diff < self.epsilon:
 			return False
 		else:
+			self.checksum = q_sum
 			return True
 
 
 	def runQAnalysis(self):
-		current_state = "Fairway"
-		previous_state = None
-		previous_action = None
-		action_taken = None
 		learning = True
-		iterations = 0
 		while learning:
-			action_taken = self.QLearningAlg(current_state, action_taken, previous_state)
-			# calculate what happens based on action based on given probabilities
-			# update current_state, keep previous state saved
-			previous_state = current_state
-			current_state = self.takeAction(current_state, action_taken)
-
-			# update previous reward to factor in the current state reached
-			self.updatePreviousReward(current_state, previous_state, action_taken)
-
-			# if current ball get in hole, put it on the fairway again and reset the values used in the Q algorithm.
-			if current_state == "In":
-				# handle the Q and N value of the action-state pair that gets the ball in the hole. 
-				highest_Q = 1
-				# ties broken by last
-				#for a in self.states[current_state].actions:
-				#	if self.Q[current_state][a] >= highest_Q:
-				#		highest_Q = self.Q[current_state][a]
-				self.N[previous_state][action_taken] += 1
-				self.alpha = 1.0 / (self.N[previous_state][action_taken]) 
-				self.Q[previous_state][action_taken] = self.Q[previous_state][action_taken] + self.alpha*self.N[previous_state][action_taken]\
-					 * ((self.R[previous_state][action_taken]/self.N[previous_state][action_taken]) + self.discount_factor * highest_Q - \
-						 self.Q[previous_state][action_taken])
-
-				current_state = "Fairway"
-				action_taken = None
-				previous_state = None
-
 			# every learning_iter iterations:
 			# learning = checkSumLearning(self)
-			iterations += 1
-			if iterations > 1000000:
-				learning = False
-		print(self.N)
+
+			self.QLearningAlg()
+
+			self.iterations += 1
+			if self.iterations == self.learning_iter * self.checked:
+				learning = self.checkSumLearning()
+				self.checked += 1
+				print(self.checked)
+
 		return self.getPolicy()
-
-
-
-		# Here's the deal. I need to do PolicySearch. But, this needs to be improved so that it matches the book - 
-		# have to implement "if TERMINAL then Q[s, none] <- r'. your current way does NOT work. "
-		# I need to OVERHAUL the way that I handle rewards
